@@ -20,51 +20,43 @@ public class FollowPlayer : MonoBehaviour
     {
         if (player == null) return;
 
-        // Rotasi hanya jika TIDAK menyentuh analog
-        if (!IsTouchingUIWithTag("IgnoreCamera"))
+        // 🌀 Rotasi jika swipe/touch TIDAK di atas elemen UI (seperti analog/tombol)
+        if (IsScreenTouched() && !IsPointerOverUI())
         {
             yaw += Input.GetAxis("Mouse X") * sensitivity;
             pitch -= Input.GetAxis("Mouse Y") * sensitivity;
             pitch = Mathf.Clamp(pitch, minPitch, maxPitch);
         }
 
-        // Tetap follow player, rotasi kamera mengarah ke player
+        // 📸 Posisi kamera
         Quaternion rotation = Quaternion.Euler(pitch, yaw, 0f);
         Vector3 desiredPosition = player.position + Vector3.up * height + (rotation * Vector3.back * distance);
         transform.position = Vector3.SmoothDamp(transform.position, desiredPosition, ref currentVelocity, 1f / smoothSpeed);
         transform.LookAt(player.position + Vector3.up * 1.5f);
     }
 
-    // Cek apakah touch/mouse sedang di atas UI dengan tag tertentu
-    bool IsTouchingUIWithTag(string tag)
+    // Cek apakah ada sentuhan (Android/iOS atau klik di PC)
+    bool IsScreenTouched()
     {
 #if UNITY_ANDROID || UNITY_IOS
-        if (Input.touchCount > 0)
-        {
-            Touch touch = Input.GetTouch(0);
-            return IsPointerOverUIWithTag(touch.position, tag);
-        }
+        return Input.touchCount > 0;
 #else
-        if (Input.GetMouseButton(0))
-        {
-            return IsPointerOverUIWithTag(Input.mousePosition, tag);
-        }
+        return Input.GetMouseButton(0);
 #endif
-        return false;
     }
 
-    // Cek jika pointer berada di atas UI dengan tag
-    bool IsPointerOverUIWithTag(Vector2 screenPosition, string tag)
+    // Cek apakah sentuhan/klik berada di atas elemen UI
+    bool IsPointerOverUI()
     {
         PointerEventData eventData = new PointerEventData(EventSystem.current);
-        eventData.position = screenPosition;
+#if UNITY_ANDROID || UNITY_IOS
+        if (Input.touchCount > 0)
+            eventData.position = Input.GetTouch(0).position;
+#else
+        eventData.position = Input.mousePosition;
+#endif
         List<RaycastResult> results = new List<RaycastResult>();
         EventSystem.current.RaycastAll(eventData, results);
-        foreach (var result in results)
-        {
-            if (result.gameObject.CompareTag(tag))
-                return true;
-        }
-        return false;
+        return results.Count > 0;
     }
 }
