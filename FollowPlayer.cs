@@ -1,47 +1,70 @@
 using UnityEngine;
+using UnityEngine.EventSystems;
+using System.Collections.Generic;
 
 public class FollowPlayer : MonoBehaviour
 {
-    [Header("Target")]
-    public Transform player;        // Objek yang diikuti (player)
+    public Transform player;
+    public float distance = 3f;
+    public float height = 2f;
+    public float sensitivity = 0.5f;
+    public float smoothSpeed = 10f;
+    public float minPitch = -20f;
+    public float maxPitch = 60f;
 
-    [Header("Camera Settings")]
-    public float distance = 3f;     // Jarak kamera dari player (mundur)
-    public float height = 2f;       // Ketinggian kamera dari player
-    public float sensitivity = 2f;  // Sensitivitas rotasi kamera
-    public float smoothSpeed = 10f; // Kehalusan pergerakan kamera
-
-    [Header("Clamp Pitch")]
-    public float minPitch = -20f;   // Batas rotasi ke bawah
-    public float maxPitch = 60f;    // Batas rotasi ke atas
-
-    private float yaw = 0f;         // Rotasi horizontal (mouse X)
-    private float pitch = 10f;      // Rotasi vertikal (mouse Y)
-
+    private float yaw = 0f;
+    private float pitch = 10f;
     private Vector3 currentVelocity;
 
     void LateUpdate()
     {
         if (player == null) return;
 
-        // Input mouse
-        yaw += Input.GetAxis("Mouse X") * sensitivity;
-        pitch -= Input.GetAxis("Mouse Y") * sensitivity;
-        pitch = Mathf.Clamp(pitch, minPitch, maxPitch);
-        // Zoom kamera pakai scroll wheel
-        float scroll = Input.GetAxis("Mouse ScrollWheel");
-        distance = Mathf.Clamp(distance - scroll * 5f, 2f, 10f);
+        // Rotasi hanya jika TIDAK menyentuh analog
+        if (!IsTouchingUIWithTag("IgnoreCamera"))
+        {
+            yaw += Input.GetAxis("Mouse X") * sensitivity;
+            pitch -= Input.GetAxis("Mouse Y") * sensitivity;
+            pitch = Mathf.Clamp(pitch, minPitch, maxPitch);
+        }
 
-        // Hitung rotasi kamera
+        // Tetap follow player, rotasi kamera mengarah ke player
         Quaternion rotation = Quaternion.Euler(pitch, yaw, 0f);
-
-        // Hitung posisi target kamera (di atas + di belakang player)
         Vector3 desiredPosition = player.position + Vector3.up * height + (rotation * Vector3.back * distance);
-
-        // Smooth pergerakan kamera
         transform.position = Vector3.SmoothDamp(transform.position, desiredPosition, ref currentVelocity, 1f / smoothSpeed);
-
-        // Kamera selalu melihat ke player (bagian atas tubuh)
         transform.LookAt(player.position + Vector3.up * 1.5f);
+    }
+
+    // Cek apakah touch/mouse sedang di atas UI dengan tag tertentu
+    bool IsTouchingUIWithTag(string tag)
+    {
+#if UNITY_ANDROID || UNITY_IOS
+        if (Input.touchCount > 0)
+        {
+            Touch touch = Input.GetTouch(0);
+            return IsPointerOverUIWithTag(touch.position, tag);
+        }
+#else
+        if (Input.GetMouseButton(0))
+        {
+            return IsPointerOverUIWithTag(Input.mousePosition, tag);
+        }
+#endif
+        return false;
+    }
+
+    // Cek jika pointer berada di atas UI dengan tag
+    bool IsPointerOverUIWithTag(Vector2 screenPosition, string tag)
+    {
+        PointerEventData eventData = new PointerEventData(EventSystem.current);
+        eventData.position = screenPosition;
+        List<RaycastResult> results = new List<RaycastResult>();
+        EventSystem.current.RaycastAll(eventData, results);
+        foreach (var result in results)
+        {
+            if (result.gameObject.CompareTag(tag))
+                return true;
+        }
+        return false;
     }
 }
